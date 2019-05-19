@@ -65,7 +65,7 @@ fn test_bundle_parameters() {
                 "metadata": {
                     "description": "a parameter"
                 },
-                "type": "int"
+                "type": "integer"
             },
             "arg2": {
                 "destination": {
@@ -78,7 +78,7 @@ fn test_bundle_parameters() {
                     "description": "a parameter"
                 },
                 "required": true,
-                "type": "int"
+                "type": "integer"
             },
             "arg3": {
                 "applyTo": ["uninstall"],
@@ -118,10 +118,7 @@ fn test_bundle_parameters() {
         assert_that(&arg1.unwrap().required).is_false();
 
         // Destination should have just env
-        assert_that(&arg1.unwrap().destination.env.as_ref())
-            .is_some()
-            .is_equal_to(&"FIRST".to_string());
-        assert_that(&arg1.unwrap().destination.path).is_none();
+        assert_that(&arg1.unwrap().destination).is_equal_to(Destination::Env("FIRST".to_string()));
 
         // Test exclusive_min/max
         assert_that(&arg1.unwrap().exclusive_minimum)
@@ -146,10 +143,9 @@ fn test_bundle_parameters() {
 
         // Destination should have just path
         let destination = &arg2.unwrap().destination;
-        assert_that(&destination.env.as_ref()).is_none();
-        assert_that(&destination.path)
-            .is_some()
-            .is_equal_to("/path/to/num".parse::<std::path::PathBuf>().unwrap());
+        assert_that(destination).is_equal_to(Destination::Path(
+            "/path/to/num".parse::<std::path::PathBuf>().unwrap(),
+        ));
 
         // Test min/max
         assert_that(&arg2.unwrap().minimum)
@@ -169,19 +165,18 @@ fn test_bundle_parameters() {
         let arg3 = params.get(&"arg3".to_string());
 
         assert!(arg3.is_some());
-        assert_that(&arg3.unwrap().parameter_type).is_equal_to("string".to_string());
+        assert_that(&arg3.unwrap().parameter_type)
+            .is_equal_to(ParameterType::String("string".to_string()));
 
         let apply = &arg3.unwrap().apply_to;
         assert!(apply.is_some());
 
         let dest = &arg3.unwrap().destination;
-        let env = &dest.env;
-        assert_that(&env).is_equal_to(&Some("LETTERS".to_string()));
+        assert_that(dest).is_equal_to(Destination::Env("LETTERS".to_string()));
 
-        let path = &dest.path;
-        assert_that(path)
-            .is_some()
-            .is_equal_to("/path/to/abc".parse::<std::path::PathBuf>().unwrap());
+        assert_that(dest).is_equal_to(Destination::Path(
+            "/path/to/abc".parse::<std::path::PathBuf>().unwrap(),
+        ));
 
         let abc = json!("abc");
         let dv = &arg3.unwrap().default_value;
@@ -208,7 +203,8 @@ fn test_bundle_parameters() {
 
         let apply_to = &arg3.unwrap().apply_to;
         assert_that(apply_to).is_equal_to(&Some(vec!["uninstall".to_string()]));
-        assert_that(&arg3.unwrap().parameter_type).is_equal_to("string".to_string());
+        assert_that(&arg3.unwrap().parameter_type)
+            .is_equal_to(ParameterType::String("string".to_string()));
     }
 }
 

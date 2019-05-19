@@ -48,7 +48,7 @@
                 "description": "The port that the back-end will listen on"
             },
             "minValue": 10,
-            "type": "int"
+            "type": "integer"
         }
     },
     "schemaVersion": "v1.0.0-WD",

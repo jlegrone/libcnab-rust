@@ -1,4 +1,5 @@
 use semver::Version;
+use serde::ser::{SerializeMap, Serializer};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::File;
@@ -169,6 +170,19 @@ pub struct Credential {
     pub path: Option<PathBuf>,
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum ParameterType {
+    #[serde(rename = "null")]
+    None,
+    String(String),
+    Boolean(bool),
+    Object(serde_json::Map<String, serde_json::Value>),
+    Array(Vec<String>),
+    Integer(i64),
+    Number(f64),
+}
+
 /// Parameter describes a parameter that will be put into the invocation image
 ///
 /// Paramters are injected into the invocation image at startup time
@@ -223,7 +237,21 @@ pub struct Parameter {
     pub required: bool,
     /// This describes the underlying type of the parameter (string, int...)
     #[serde(rename = "type")]
-    pub parameter_type: String, // Should be Enum; alphabetically, this is 'type'
+    pub parameter_type: ParameterType, // Should be Enum; alphabetically, this is 'type'
+}
+
+impl Parameter {
+    pub fn validate(&self, value: serde_json::Value) -> Result<(), Box<dyn std::error::Error>> {
+        match value {
+            // serde_json::Value::Array(vec) => {
+            //     if vec.len() as i64 > self.min_length.unwrap_or_default() {
+            //         return Ok(());
+            //     }
+            //     Ok(())
+            // }
+            _ => Ok(()),
+        }
+    }
 }
 
 /// An Action is a custom action in an invocation image.
@@ -257,11 +285,73 @@ pub struct Metadata {
 ///
 /// A parameter value can be placed into an environment variable (`env`) or a file at
 /// a particular location on the filesystem (`path`). This is a non-exclusive or, meaning
-/// that the same paramter can be written to both an env var and a path.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Destination {
+/// that the same parameter can be written to both an env var and a path.
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[serde(remote = "Destination")]
+pub enum Destination {
     /// The name of the destination environment variable
-    pub env: Option<String>,
+    Env(String),
     /// The fully qualified path to the destination file
-    pub path: Option<PathBuf>,
+    Path(PathBuf),
+    /// The name of the destination environment variable and a fully qualified path to the destination file
+    EnvAndPath(String, PathBuf),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UncheckedDestination {
+    env: Option<String>,
+    path: Option<PathBuf>,
+}
+
+impl Serialize for Destination {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Destination::Env(env) => {
+                let mut map = serializer.serialize_map(Some(1))?;
+                map.serialize_entry("env", &env)?;
+                map.end()
+            }
+            Destination::Path(path) => {
+                let mut map = serializer.serialize_map(Some(1))?;
+                map.serialize_entry("path", &path)?;
+                map.end()
+            }
+            Destination::EnvAndPath(env, path) => {
+                let mut map = serializer.serialize_map(Some(2))?;
+                map.serialize_entry("env", &env)?;
+                map.serialize_entry("path", &path)?;
+                map.end()
+            }
+        }
+    }
+}
+
+impl<'de> serde::de::Deserialize<'de> for Destination {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        match UncheckedDestination::deserialize(deserializer)? {
+            UncheckedDestination {
+                env: Some(env),
+                path: Some(path),
+            } => Ok(Destination::EnvAndPath(env, path)),
+            UncheckedDestination {
+                env: Some(env),
+                path: None,
+            } => Ok(Destination::Env(env)),
+            UncheckedDestination {
+                env: None,
+                path: Some(path),
+            } => Ok(Destination::Path(path)),
+            UncheckedDestination {
+                env: None,
+                path: None,
+            } => Err(serde::de::Error::custom("env or path is required")),
+        }
+    }
 }
