@@ -1,9 +1,8 @@
 use semver::Version;
 // use serde::de::{Deserializer, IntoDeserializer};
-use serde::de::Deserializer;
-use serde::ser::{SerializeMap, Serializer};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::convert::From;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -288,9 +287,10 @@ pub struct Metadata {
 /// A parameter value can be placed into an environment variable (`env`) or a file at
 /// a particular location on the filesystem (`path`). This is a non-exclusive or, meaning
 /// that the same parameter can be written to both an env var and a path.
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-#[serde(remote = "Destination")]
-#[serde(with = "destination")]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+// #[serde(remote = "Destination")]
+#[serde(from = "UncheckedDestination")]
+#[serde(into = "UncheckedDestination")]
 pub enum Destination {
     /// The name of the destination environment variable
     Env(String),
@@ -300,12 +300,17 @@ pub enum Destination {
     EnvAndPath(String, PathBuf),
 }
 
-// impl<'de> serde::de::Deserialize<'de> for Destination {
-//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-//     where
-//         D: Deserializer<'de>,
-//     {
-//         let unchecked = UncheckedDestination::deserialize(deserializer).expect("foo");
+#[derive(Debug, Serialize, Deserialize)]
+// #[serde(rename_all = "camelCase")]
+struct UncheckedDestination {
+    env: Option<String>,
+    path: Option<PathBuf>,
+}
+
+// impl TryFrom<UncheckedDestination> for Destination {
+//     type Error = BundleParseError;
+
+//     fn try_from(unchecked: UncheckedDestination) -> Result<Destination, Self::Error> {
 //         match unchecked {
 //             UncheckedDestination {
 //                 env: Some(env),
@@ -322,8 +327,51 @@ pub enum Destination {
 //             UncheckedDestination {
 //                 env: None,
 //                 path: None,
-//             } => Err(serde::de::Error::custom("env or path is required")),
-//             // _ => Destination::deserialize(unchecked.into_deserializer()),
+//             } => Err(BundleParseError::SerdeJSONError(serde::de::Error::custom(
+//                 "env or path is required",
+//             ))),
 //         }
 //     }
 // }
+
+impl From<UncheckedDestination> for Destination {
+    fn from(unchecked: UncheckedDestination) -> Destination {
+        match unchecked {
+            UncheckedDestination {
+                env: Some(env),
+                path: None,
+            } => Destination::Env(env),
+            UncheckedDestination {
+                env: None,
+                path: Some(path),
+            } => Destination::Path(path),
+            UncheckedDestination {
+                env: Some(env),
+                path: Some(path),
+            } => Destination::EnvAndPath(env, path),
+            UncheckedDestination {
+                env: None,
+                path: None,
+            } => Destination::Env("foo".to_owned()),
+        }
+    }
+}
+
+impl From<Destination> for UncheckedDestination {
+    fn from(dest: Destination) -> UncheckedDestination {
+        match dest {
+            Destination::Env(env) => UncheckedDestination {
+                env: Some(env),
+                path: None,
+            },
+            Destination::Path(path) => UncheckedDestination {
+                env: None,
+                path: Some(path),
+            },
+            Destination::EnvAndPath(env, path) => UncheckedDestination {
+                env: Some(env),
+                path: Some(path),
+            },
+        }
+    }
+}
