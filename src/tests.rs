@@ -49,7 +49,7 @@ fn test_bundle_keywords() {
 // Test parameters
 #[test]
 fn test_bundle_parameters() {
-    let bun: Bundle = r#"{
+    let bun = r#"{
         "name": "aristotle",
         "invocationImages": [],
         "schemaVersion": "1.0-WD",
@@ -99,8 +99,11 @@ fn test_bundle_parameters() {
             }
         }
     }"#
-    .parse()
-    .unwrap();
+    .parse::<Bundle>();
+
+    println!("{:?}", &bun);
+
+    let bun = bun.expect("oops");
 
     assert_that(&bun.name).is_equal_to("aristotle".to_string());
     assert_that(&bun.schema_version).is_equal_to("1.0-WD".to_string());

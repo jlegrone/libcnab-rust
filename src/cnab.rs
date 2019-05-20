@@ -290,6 +290,7 @@ pub struct Metadata {
 /// that the same parameter can be written to both an env var and a path.
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(remote = "Destination")]
+#[serde(with = "destination")]
 pub enum Destination {
     /// The name of the destination environment variable
     Env(String),
@@ -299,63 +300,30 @@ pub enum Destination {
     EnvAndPath(String, PathBuf),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct UncheckedDestination {
-    env: Option<String>,
-    path: Option<PathBuf>,
-}
-
-impl serde::ser::Serialize for Destination {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self {
-            Destination::Env(env) => {
-                let mut map = serializer.serialize_map(Some(1))?;
-                map.serialize_entry("env", &env)?;
-                map.end()
-            }
-            Destination::Path(path) => {
-                let mut map = serializer.serialize_map(Some(1))?;
-                map.serialize_entry("path", &path)?;
-                map.end()
-            }
-            Destination::EnvAndPath(env, path) => {
-                let mut map = serializer.serialize_map(Some(2))?;
-                map.serialize_entry("env", &env)?;
-                map.serialize_entry("path", &path)?;
-                map.end()
-            }
-        }
-    }
-}
-
-impl<'de> serde::de::Deserialize<'de> for Destination {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let unchecked = UncheckedDestination::deserialize(deserializer).expect("foo");
-        match unchecked {
-            UncheckedDestination {
-                env: Some(env),
-                path: None,
-            } => Ok(Destination::Env(env)),
-            UncheckedDestination {
-                env: None,
-                path: Some(path),
-            } => Ok(Destination::Path(path)),
-            UncheckedDestination {
-                env: Some(env),
-                path: Some(path),
-            } => Ok(Destination::EnvAndPath(env, path)),
-            UncheckedDestination {
-                env: None,
-                path: None,
-            } => Err(serde::de::Error::custom("env or path is required")),
-            // _ => Destination::deserialize(unchecked.into_deserializer()),
-        }
-    }
-}
+// impl<'de> serde::de::Deserialize<'de> for Destination {
+//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+//     where
+//         D: Deserializer<'de>,
+//     {
+//         let unchecked = UncheckedDestination::deserialize(deserializer).expect("foo");
+//         match unchecked {
+//             UncheckedDestination {
+//                 env: Some(env),
+//                 path: None,
+//             } => Ok(Destination::Env(env)),
+//             UncheckedDestination {
+//                 env: None,
+//                 path: Some(path),
+//             } => Ok(Destination::Path(path)),
+//             UncheckedDestination {
+//                 env: Some(env),
+//                 path: Some(path),
+//             } => Ok(Destination::EnvAndPath(env, path)),
+//             UncheckedDestination {
+//                 env: None,
+//                 path: None,
+//             } => Err(serde::de::Error::custom("env or path is required")),
+//             // _ => Destination::deserialize(unchecked.into_deserializer()),
+//         }
+//     }
+// }
