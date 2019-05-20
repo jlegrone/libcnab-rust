@@ -1,4 +1,6 @@
 use semver::Version;
+// use serde::de::{Deserializer, IntoDeserializer};
+use serde::de::Deserializer;
 use serde::ser::{SerializeMap, Serializer};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -304,7 +306,7 @@ struct UncheckedDestination {
     path: Option<PathBuf>,
 }
 
-impl Serialize for Destination {
+impl serde::ser::Serialize for Destination {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -333,13 +335,10 @@ impl Serialize for Destination {
 impl<'de> serde::de::Deserialize<'de> for Destination {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: serde::de::Deserializer<'de>,
+        D: Deserializer<'de>,
     {
-        match UncheckedDestination::deserialize(deserializer)? {
-            UncheckedDestination {
-                env: Some(env),
-                path: Some(path),
-            } => Ok(Destination::EnvAndPath(env, path)),
+        let unchecked = UncheckedDestination::deserialize(deserializer).expect("foo");
+        match unchecked {
             UncheckedDestination {
                 env: Some(env),
                 path: None,
@@ -349,9 +348,14 @@ impl<'de> serde::de::Deserialize<'de> for Destination {
                 path: Some(path),
             } => Ok(Destination::Path(path)),
             UncheckedDestination {
+                env: Some(env),
+                path: Some(path),
+            } => Ok(Destination::EnvAndPath(env, path)),
+            UncheckedDestination {
                 env: None,
                 path: None,
             } => Err(serde::de::Error::custom("env or path is required")),
+            // _ => Destination::deserialize(unchecked.into_deserializer()),
         }
     }
 }
