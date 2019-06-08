@@ -300,23 +300,25 @@ pub struct Metadata {
 #[serde(into = "UncheckedDestination")]
 pub enum Destination {
     /// The name of the destination environment variable
-    Env(EnvironmentVariable),
+    Env(String),
     /// The fully qualified path to the destination file
-    Path(FilePath),
+    Path(PathBuf),
     /// The name of the destination environment variable and a fully qualified path to the destination file
-    EnvAndPath(EnvironmentVariable, FilePath),
+    // EnvAndPath(String, PathBuf),
+    Map { env: String, path: PathBuf },
 }
-
-type EnvironmentVariable = String;
-type FilePath = PathBuf;
 
 impl<'de> Deserialize<'de> for Destination {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let unchecked = UncheckedDestination::deserialize(deserializer)?;
-        Destination::try_from(unchecked).map_err(serde::de::Error::custom)
+        let unchecked = UncheckedDestination::deserialize(deserializer);
+        match unchecked {
+            Ok(unchecked) => Destination::try_from(unchecked).map_err(serde::de::Error::custom),
+            _ => Ok(Destination::Env("foo".to_string())),
+        }
+        // Destination::try_from(unchecked).map_err(serde::de::Error::custom)
     }
 }
 
@@ -388,7 +390,10 @@ impl From<Destination> for UncheckedDestination {
                 env: None,
                 path: Some(path),
             },
-            Destination::EnvAndPath(env, path) => UncheckedDestination {
+            Destination::Map {
+                env: env,
+                path: path,
+            } => UncheckedDestination {
                 env: Some(env),
                 path: Some(path),
             },

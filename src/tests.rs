@@ -174,12 +174,15 @@ fn test_bundle_parameters() {
         let apply = &arg3.unwrap().apply_to;
         assert!(apply.is_some());
 
-        let dest = &arg3.unwrap().destination;
-        assert_that(dest).is_equal_to(Destination::Env("LETTERS".to_string()));
+        match &arg3.unwrap().destination {
+            Destination::Env(var) => assert_that(var).is_equal_to("LETTERS".to_string()),
+            _ => panic!("Destination must be an environment variable"),
+        }
+        // assert_that(dest).is_equal_to(Destination::Env("LETTERS".to_string()));
 
-        assert_that(dest).is_equal_to(Destination::Path(
-            "/path/to/abc".parse::<std::path::PathBuf>().unwrap(),
-        ));
+        // assert_that(dest).is_equal_to(Destination::Path(
+        //     "/path/to/abc".parse::<std::path::PathBuf>().unwrap(),
+        // ));
 
         let abc = json!("abc");
         let dv = &arg3.unwrap().default_value;
